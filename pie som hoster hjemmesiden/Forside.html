@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IoHT forside</title>
+    <link rel="stylesheet" href="/static/jquery-ui.css">
+    <script src="/static/jquery-3.6.4.min.js"></script>
+    <script src="/static/jquery-ui.min.js"></script>
+    <script src="/static/socket.io.js"></script>
+
+    <style>
+        body {
+            background-image: url('/static/Plejehjem_Kastanjehaven.png');
+            background-size: 90% 100%;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            margin: 0;
+            padding: 0;
+        }
+
+        .box {
+            border: 2px solid rgb(0, 0, 0);
+            border-radius: 5px;
+            padding: 15px;
+            margin: 5px; 
+            color: rgb(0, 0, 0);
+            background-color: black; 
+        }
+
+        .red {
+            background-color: red;
+            animation: blinkRed 1s infinite;
+        }
+
+        .yellow {
+            background-color: yellow;
+            animation: blinkYellow 1s infinite;
+        }
+
+        .green {
+            background-color: lightgreen; 
+        }
+
+        @keyframes blinkRed {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+        }
+
+        @keyframes blinkYellow {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0;
+            }
+        }
+    </style>
+    <script>
+        var socket = io.connect('http://' + document.domain + ':' + location.port);
+
+        // Funktion til at håndtere opdateringer 
+        socket.on('update_data', function (data) {
+            if (data) {
+                document.getElementById('distance').innerText = data[0];
+                document.getElementById('co2').innerText = data[1];
+                document.getElementById('timestamp').innerText = data[2];
+
+                // Opdatere farverne på boxen baseret på den nye data
+                updateSensorValues(data[0], data[1], 'V1'); 
+                // 
+            } else {
+                console.log("No data available");
+            }
+        });
+
+        // Funktion til at anmode om data opdatering
+        function requestDataUpdate() {
+            socket.emit('request_data_update');
+        }
+
+        // Funktion til at opdatere distance og co2 
+        function updateSensorValues(distance, co2, boxId) {
+            var box = $('#' + boxId);
+
+            //
+            if (distance < 20 && co2 < 600) {
+                box.removeClass().addClass('box red');
+            } else if (distance < 20 && co2 >= 600) {
+                box.removeClass().addClass('box red');
+            } else if (distance >= 20 && co2 >= 600) {
+                box.removeClass().addClass('box yellow');
+            } else if (distance >= 20 && co2 < 600) {
+                box.removeClass().addClass('box green');
+            } else {
+                box.removeClass().addClass('box');
+            }
+        }
+
+        // Funktion til at opdatere data fra database
+        function fetchData() {
+            fetch('/get_database_data') 
+                .then(response => response.json())
+                .then(data => {
+                    // Opdatere værdien for rummet
+                    updateSensorValues(data[0], data[1], 'V1'); 
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        // Funktion til at opdtaere postionen på boxen når vi rykker dem rundt via bruger input 
+            var position = $('#' + boxId).position();
+            var width = $('#' + boxId).width();
+            var height = $('#' + boxId).height();
+
+            // Opdaterer box postion og størrelse 
+            $('#' + boxId).css({
+                'top': position.top + 'px',
+                'left': position.left + 'px',
+                'width': width + 'px',
+                'height': height + 'px'
+            });
+
+            // Gemmer postion og størrelse på bozene lokalt
+            localStorage.setItem(boxId + 'Attributes', JSON.stringify({
+                top: position.top,
+                left: position.left,
+                width: width,
+                height: height
+            }));
+        }
+
+        // Funktion til at logge ud
+        function logOut() {
+            window.location.href = '/login';  
+        }
+        window.onload = function () {
+            requestDataUpdate();
+            setInterval(requestDataUpdate, 1000); // Henter data hvert sekund 
+
+            $('.box').each(function () {
+                var boxId = $(this).attr('id');
+                $('#' + boxId).resizable({
+                    stop: function (event, ui) {
+                        updateBoxPositionAndSize(boxId);
+                    }
+                }).draggable({
+                    stop: function (event, ui) {
+                        updateBoxPositionAndSize(boxId);
+                    }
+                }).css({
+                    'position': 'absolute' 
+                });
+
+                // Modtager postion og størrelse på boxen som er lokal gemt
+                var savedAttributes = localStorage.getItem(boxId + 'Attributes');
+                if (savedAttributes) {
+                    savedAttributes = JSON.parse(savedAttributes);
+                    $('#' + boxId).css({
+                        'top': savedAttributes.top + 'px',
+                        'left': savedAttributes.left + 'px',
+                        'width': savedAttributes.width + 'px',
+                        'height': savedAttributes.height + 'px'
+                    });
+                }
+            });
+
+            fetchData();
+
+            // Opdatere hjemmesiden hvert sekundt
+            setInterval(fetchData, 1000);
+        };
+    </script>
+</head>
+
+<body>
+    <h1>IoHT</h1>
+    <button onclick="logOut()">Log ud</button>
+    <table>
+        <thead>
+            <tr>
+                <th>Distance</th>
+                <th>CO2</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td id="distance"></td>
+                <td id="co2"></td>
+                <td id="timestamp"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div id="bokse-container">
+        <!-- Alle vores bokse som ses på hjemmesiden -->
+        <div class="box resizable" id="V1" style="width: 200px; height: 200px;">Beboer 1</div>
+        <div class="box green resizable" id="V2" style="width: 200px; height: 200px;">Beboer 2</div>
+        <div class="box green resizable" id="V3" style="width: 200px; height: 200px;">Beboer 3</div>
+        <div class="box green resizable" id="V4" style="width: 200px; height: 200px;">Beboer 4</div>
+        <div class="box green resizable" id="V5" style="width: 200px; height: 200px;">Beboer 5</div>
+        <div class="box green resizable" id="V6" style="width: 200px; height: 200px;">Beboer 6</div>
+        <div class="box green resizable" id="V7" style="width: 200px; height: 200px;">Beboer 7</div>
+        <div class="box green resizable" id="V8" style="width: 200px; height: 200px;">Beboer 8</div>
+        <div class="box green resizable" id="V9" style="width: 200px; height: 200px;">Beboer 9</div>
+        <div class="box green resizable" id="V10" style="width: 200px; height: 200px;">Beboer 10</div>
+    </div>
+</body>
+
+</html>
