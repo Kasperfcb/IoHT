@@ -77,6 +77,16 @@ def insert_data_into_database(distance, co2):
     connection.commit()
     connection.close()
 
+def activate_buzzer():
+    for _ in range(3):
+        # Aktiverer buzzer i 3 sekunder
+        pwm.ChangeDutyCycle(50)
+        time.sleep(3)
+        pwm.ChangeDutyCycle(0)
+        # Venter i 1 sekund mellem hver buzzer aktivering
+        time.sleep(1)
+
+
 # Lytter til ultrasonic_topic og co2_topic 
 def on_connect(client, userdata, flags, rc):
     print(f"Connected with result code {rc}")
@@ -89,18 +99,18 @@ def on_message(client, userdata, msg):
     global last_distance, last_co2
     payload = msg.payload.decode()
 # Hvis afstanden er under 20 cm så bliver buzzeren aktiveret
-    if msg.topic == ultrasonic_topic:
+   if msg.topic == ultrasonic_topic:
         last_distance = float(payload)
         print(f"Received Ultrasonic distance: {last_distance}")
         if last_distance < 20:
-            pwm.ChangeDutyCycle(50)
-            time.sleep(0.2)
-            pwm.ChangeDutyCycle(0)
+            Thread(target=activate_buzzer).start()
+        Thread(target=insert_data_into_database, args=(last_distance, last_co2)).start()
     elif msg.topic == co2_topic:
         last_co2 = float(payload)
         print(f"Received CO2 value: {last_co2}")
-        insert_data_into_database(last_distance, last_co2)
+        Thread(target=insert_data_into_database, args=(last_distance, last_co2)).start()
 
+    print(f"Received message on topic {msg.topic}: {payload}")
     print(f"Received message on topic {msg.topic}: {payload}")
 # oprettes forbindele til vores mqtt via username, password og porten
 client = mqtt.Client()
